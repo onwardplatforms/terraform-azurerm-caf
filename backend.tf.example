@@ -1,0 +1,228 @@
+# Terraform Backend Configuration Examples
+#
+# This file provides example backend configurations for the Azure CAF module.
+# Copy and customize one of these configurations based on your deployment scenario.
+#
+# IMPORTANT:
+# - Remove the .example extension when implementing
+# - This configuration should be added to your root module, not this CAF module
+# - Ensure proper access permissions are configured for the storage account
+
+# ============================================================================
+# Example 1: Azure Storage Backend (Recommended for Production)
+# ============================================================================
+
+terraform {
+  backend "azurerm" {
+    # Storage account details
+    storage_account_name = "mystorageaccount"        # Required: Replace with your storage account name
+    container_name       = "terraform-state"         # Required: Container for state files
+    key                  = "caf/terraform.tfstate"   # Required: Path to state file within container
+
+    # Authentication (choose one method)
+
+    # Method 1: Service Principal (Recommended for CI/CD)
+    subscription_id      = "00000000-0000-0000-0000-000000000000"  # Your subscription ID
+    tenant_id           = "00000000-0000-0000-0000-000000000000"  # Your tenant ID
+    client_id           = "00000000-0000-0000-0000-000000000000"  # Service principal client ID
+    client_secret       = "your-client-secret"                    # Service principal secret
+
+    # Method 2: Azure CLI Authentication (for local development)
+    # use_azuread_auth    = true
+    # subscription_id     = "00000000-0000-0000-0000-000000000000"
+
+    # Method 3: Managed Identity (for Azure-hosted runners)
+    # use_msi            = true
+    # subscription_id    = "00000000-0000-0000-0000-000000000000"
+
+    # Optional: Enable state locking (recommended)
+    use_azuread_auth = false  # Set to true if using Azure AD authentication
+  }
+}
+
+# ============================================================================
+# Example 2: Azure Storage Backend with State Locking
+# ============================================================================
+
+# terraform {
+#   backend "azurerm" {
+#     # Core configuration
+#     resource_group_name  = "terraform-state-rg"
+#     storage_account_name = "tfstateXXXXX"           # Must be globally unique
+#     container_name       = "tfstate"
+#     key                  = "caf/prod.terraform.tfstate"
+#
+#     # State locking with lease
+#     use_azuread_auth = true
+#     subscription_id  = "00000000-0000-0000-0000-000000000000"
+#     tenant_id       = "00000000-0000-0000-0000-000000000000"
+#   }
+# }
+
+# ============================================================================
+# Example 3: Multi-Environment Backend Configuration
+# ============================================================================
+
+# Development Environment
+# terraform {
+#   backend "azurerm" {
+#     storage_account_name = "tfstatedev"
+#     container_name       = "tfstate"
+#     key                  = "caf/dev.terraform.tfstate"
+#     subscription_id      = "dev-subscription-id"
+#   }
+# }
+
+# Staging Environment
+# terraform {
+#   backend "azurerm" {
+#     storage_account_name = "tfstatestaging"
+#     container_name       = "tfstate"
+#     key                  = "caf/staging.terraform.tfstate"
+#     subscription_id      = "staging-subscription-id"
+#   }
+# }
+
+# Production Environment
+# terraform {
+#   backend "azurerm" {
+#     storage_account_name = "tfstateprod"
+#     container_name       = "tfstate"
+#     key                  = "caf/prod.terraform.tfstate"
+#     subscription_id      = "prod-subscription-id"
+#   }
+# }
+
+# ============================================================================
+# Example 4: Cross-Subscription Backend (Enterprise Scenarios)
+# ============================================================================
+
+# terraform {
+#   backend "azurerm" {
+#     # State storage in management subscription
+#     resource_group_name  = "terraform-state-rg"
+#     storage_account_name = "enterprisetfstate"
+#     container_name       = "workload-states"
+#     key                  = "workloads/caf-landing-zone.tfstate"
+#
+#     # Management subscription for state
+#     subscription_id      = "management-subscription-id"
+#     tenant_id           = "your-tenant-id"
+#
+#     # Service principal with cross-subscription access
+#     client_id           = "terraform-service-principal-id"
+#     client_secret       = "terraform-service-principal-secret"
+#   }
+# }
+
+# ============================================================================
+# Required Azure Resources for Backend
+# ============================================================================
+
+# You need to create these resources before using the backend:
+#
+# 1. Resource Group:
+#    az group create --name terraform-state-rg --location "East US 2"
+#
+# 2. Storage Account:
+#    az storage account create \
+#      --resource-group terraform-state-rg \
+#      --name mystorageaccount \
+#      --sku Standard_LRS \
+#      --encryption-services blob
+#
+# 3. Storage Container:
+#    az storage container create \
+#      --name terraform-state \
+#      --account-name mystorageaccount
+#
+# 4. Enable versioning (recommended):
+#    az storage account blob-service-properties update \
+#      --account-name mystorageaccount \
+#      --enable-versioning true
+
+# ============================================================================
+# Backend Configuration Security Best Practices
+# ============================================================================
+
+# 1. Storage Account Security:
+#    - Enable "Secure transfer required"
+#    - Use private endpoints if possible
+#    - Enable soft delete for blobs
+#    - Configure network rules to restrict access
+#    - Enable blob versioning for state history
+#
+# 2. Access Control:
+#    - Use Azure RBAC for storage account access
+#    - Grant minimal permissions (Storage Blob Data Contributor)
+#    - Use service principals for automated deployments
+#    - Rotate access keys regularly
+#
+# 3. State File Security:
+#    - Enable encryption at rest (default in Azure Storage)
+#    - Consider customer-managed keys for additional security
+#    - Monitor access with Azure Activity Log
+#    - Implement state file backup strategy
+#
+# 4. Network Security:
+#    - Use private endpoints for storage account
+#    - Configure firewall rules to allow only trusted networks
+#    - Consider using VPN or ExpressRoute for private connectivity
+
+# ============================================================================
+# Environment Variables Alternative
+# ============================================================================
+
+# Instead of hardcoding values, you can use environment variables:
+#
+# export ARM_SUBSCRIPTION_ID="your-subscription-id"
+# export ARM_TENANT_ID="your-tenant-id"
+# export ARM_CLIENT_ID="your-service-principal-id"
+# export ARM_CLIENT_SECRET="your-service-principal-secret"
+#
+# Then use a minimal backend configuration:
+#
+# terraform {
+#   backend "azurerm" {
+#     storage_account_name = "mystorageaccount"
+#     container_name       = "terraform-state"
+#     key                  = "caf/terraform.tfstate"
+#   }
+# }
+
+# ============================================================================
+# CI/CD Pipeline Integration
+# ============================================================================
+
+# For Azure DevOps:
+# - Store secrets in Azure DevOps variable groups
+# - Use service connections for authentication
+# - Configure backend initialization in pipeline YAML
+#
+# For GitHub Actions:
+# - Store secrets in GitHub repository secrets
+# - Use OIDC authentication where possible
+# - Initialize backend in workflow steps
+#
+# For Jenkins:
+# - Use Azure credentials plugin
+# - Store sensitive values in Jenkins credential store
+# - Initialize backend in pipeline groovy script
+
+# ============================================================================
+# Disaster Recovery Considerations
+# ============================================================================
+
+# 1. Cross-Region Replication:
+#    - Use GRS (Geo-Redundant Storage) for state storage account
+#    - Consider Read-Access GRS for disaster recovery scenarios
+#
+# 2. Backup Strategy:
+#    - Enable blob versioning and soft delete
+#    - Implement automated backup to secondary storage account
+#    - Test state file recovery procedures regularly
+#
+# 3. Multi-Region Deployment:
+#    - Use separate state files for different regions
+#    - Implement cross-region dependency management
+#    - Plan for regional failover scenarios
